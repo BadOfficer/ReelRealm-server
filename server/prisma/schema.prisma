@@ -1,0 +1,100 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id String @id @default(uuid())
+  username String
+  email String @unique
+  password String
+  role Role @default(USER)
+  reviews Review[]
+  watchList WatchList?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Movie {
+  id String @id @default(uuid())
+  title String
+  description String?
+  releaseDate DateTime @map("release_date")
+  duration Int
+  country String
+  director String
+  actors String[]
+  rating Int @default(0)
+  reviews Review[]
+  posterUrl String? @map("poster_url")
+  trailerUrl String? @map("trailer_url")
+  genres MovieGenre[]
+  ageRating Int? @map("age_rating")
+  watchlists WatchListMovie[]
+  isSeries Boolean? @default(false) @map("is_series")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("movies")
+}
+
+model Genre {
+  id String @id @default(uuid())
+  title String
+  movies MovieGenre[]
+}
+
+model Review {
+  id BigInt @id @default(autoincrement())
+
+  user User @relation(fields: [userId], references: [id])
+  userId String @map("user_id")
+
+  movie Movie @relation(fields: [movieId], references: [id])
+  movieId String @map("movie_id")
+}
+
+model WatchList {
+  id BigInt @id @default(autoincrement())
+  user User @relation(fields: [userId], references: [id])
+  userId String @unique @map("user_id")
+
+  movies WatchListMovie[]
+}
+
+model WatchListMovie {
+  id BigInt @id @default(autoincrement())
+
+  movie Movie @relation(fields: [movieId], references: [id])
+  movieId String @map("movie_id")
+
+  watchList WatchList @relation(fields: [watchListId], references: [id])
+  watchListId BigInt @map("watchlist_id")
+}
+
+model MovieGenre {
+  id BigInt @id @default(autoincrement())
+
+  movie Movie @relation(fields: [movieId], references: [id])
+  movieId String @map("movie_id")
+
+  genre Genre @relation(fields: [genreId], references: [id])
+  genreId String @map("genre_id")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
