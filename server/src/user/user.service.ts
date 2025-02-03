@@ -1,17 +1,20 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { RequestUserDto } from './dto/request-user.dto';
-import { User } from './user.interface';
+import { CreateUserDto } from './dto/create-user.dto';
+import { IUser } from './types/user.interface';
 import * as bcrypt from 'bcrypt';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UserService {
     constructor(private readonly prismaService: PrismaService) {}
 
-    async createUser(userRequestDto: RequestUserDto): Promise<User> {
-        const {email, username, password} = userRequestDto;
-
-        const user = this.findUserByEmail(email);
+    async createUser({email, username, password}: CreateUserDto): Promise<{message: string}> {
+        const user = await this.prismaService.user.findUnique({
+            where: {
+                email
+            }
+        })
 
         if(user) {
             throw new BadRequestException(`User with email - ${email} is exist!`);
@@ -19,30 +22,30 @@ export class UserService {
 
         const hashedPassword = await this.hashPassword(password);
 
-        return this.prismaService.user.create({
+        await this.prismaService.user.create({
             data: {username, email, password: hashedPassword}
         })
+
+        return {
+            message: `User - ${username} has been created!`
+        }
     }
 
-    async updateUser(id: string, userRequestDto: RequestUserDto): Promise<User> {
-        const user = await this.findUserById(id);
+    async updateUser(id: string, userRequestDto: UpdateUserDto): Promise<{message: string}> {
+        await this.findUserById(id);
 
-        if(user) {
-            throw new NotFoundException(`User with id - ${id} not found!`)
-        }
-
-        return this.prismaService.user.update({
+        await this.prismaService.user.update({
             where: {id}, 
             data: {...userRequestDto}
         })
+
+        return {
+            message: `User - ${userRequestDto.username} has been updated!`
+        } 
     }
 
     async deleteUser(id: string): Promise<{message: string}> {
         const user = await this.findUserById(id);
-
-        if(user) {
-            throw new NotFoundException(`User with id - ${id} not found!`)
-        }
 
         await this.prismaService.user.delete({
             where: {id}
@@ -51,29 +54,57 @@ export class UserService {
         return {message: `User - ${user.username} has been deleted!`}
     }
 
-    async findAllUsers(): Promise<User[]> {
-        return this.prismaService.user.findMany();
+    async findAllUsers(): Promise<IUser[]> {
+        const users = await this.prismaService.user.findMany();
+        
+        return users.map(user => {
+            return {
+                id: user.id,
+                email: user.email,
+                username: user.username,
+                role: user.role,
+                isConfirmed: user.isConfirmed
+            }
+        });
     }
 
-    async findUserById(id: string): Promise<User> {
+
+    async findUserById(id: string): Promise<IUser> {
         try {
-            return this.prismaService.user.findUnique({where: {id}});
+            const user = await this.prismaService.user.findUnique({where: {id}});
+
+            return {
+                id: user.id,
+                email: user.email,
+                role: user.role,
+                username: user.username,
+                isConfirmed: user.isConfirmed
+            }
         } catch (e) {
             throw new NotFoundException(`User with id - ${id} not found!`)
         }
     }
 
-    async findUserByEmail(email: string): Promise<User & {password: string}> {
+    async findUserByEmail(email: string): Promise<IUser & {password: string}> {
         try {
-            return this.prismaService.user.findUnique({
+            const user = await this.prismaService.user.findUnique({
                 where: {email}
             })
+
+            return {
+                id: user.id,
+                email: user.email,
+                role: user.role,
+                username: user.username,
+                password: user.password,
+                isConfirmed: user.isConfirmed
+            }
         } catch (e) {
             throw new NotFoundException(`User with email - ${email} not found!`)
         }
     }
 
-    async hashPassword(password: string): Promise<string> {
+    private async hashPassword(password: string): Promise<string> {
         return await bcrypt.hash(password, 10);
     }
 }
